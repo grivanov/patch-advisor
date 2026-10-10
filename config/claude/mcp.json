@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "outline": {
+      "type": "http",
+      "url": "https://your-team.getoutline.com/mcp",
+      "headers": { "Authorization": "Bearer ${OUTLINE_TOKEN}" }
+    }
+  }
+}

@@ -1,0 +1,272 @@
+{
+  "extends": "claude-code",
+  "meta": {
+    "name": "patch-advisor",
+    "description": "Claude Code patch advisor: read-only audit of host packages and Docker containers, reports to Outline (subscription token)"
+  },
+  "filesystem": {
+    "read_file": [
+      "/etc/bash.bashrc"
+    ]
+  },
+  "network": {
+    "network_profile": "claude-code",
+    "allow_domain": [
+      "github.com",
+      {
+        "domain": "api.github.com",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/repos/**"
+          },
+          {
+            "method": "GET",
+            "path": "/rate_limit"
+          },
+          {
+            "method": "GET",
+            "path": "/advisories"
+          },
+          {
+            "method": "GET",
+            "path": "/advisories/**"
+          },
+          {
+            "method": "GET",
+            "path": "/search/repositories"
+          }
+        ]
+      },
+      "raw.githubusercontent.com",
+      {
+        "domain": "hub.docker.com",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/v2/**"
+          }
+        ]
+      },
+      {
+        "domain": "registry-1.docker.io",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/v2/"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/tags/list"
+          }
+        ]
+      },
+      {
+        "domain": "auth.docker.io",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/token"
+          }
+        ]
+      },
+      {
+        "domain": "ghcr.io",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/token"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/tags/list"
+          }
+        ]
+      },
+      {
+        "domain": "quay.io",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/v1/**"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/tags/list"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "HEAD",
+            "path": "/v2/*/*/*/manifests/*"
+          },
+          {
+            "method": "GET",
+            "path": "/v2/*/*/*/tags/list"
+          }
+        ]
+      },
+      "ubuntu.com",
+      "security-tracker.debian.org",
+      {
+        "domain": "api.osv.dev",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/v1/query"
+          },
+          {
+            "method": "POST",
+            "path": "/v1/querybatch"
+          },
+          {
+            "method": "GET",
+            "path": "/v1/vulns/**"
+          }
+        ]
+      },
+      {
+        "domain": "euvdservices.enisa.europa.eu",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/**"
+          }
+        ]
+      },
+      {
+        "domain": "endoflife.date",
+        "endpoints": [
+          {
+            "method": "GET",
+            "path": "/api/**"
+          }
+        ]
+      },
+      "your-team.getoutline.com"
+    ],
+    "custom_credentials": {
+      "anthropic": {
+        "upstream": "https://api.anthropic.com",
+        "credential_key": "file:///run/secrets/anthropic_credential",
+        "env_var": "CLAUDE_CODE_OAUTH_TOKEN",
+        "inject_mode": "header",
+        "inject_header": "Authorization",
+        "credential_format": "Bearer {}"
+      },
+      "outline": {
+        "upstream": "https://your-team.getoutline.com",
+        "credential_key": "file:///run/secrets/outline_token",
+        "env_var": "OUTLINE_TOKEN",
+        "endpoint_rules": [
+          {
+            "method": "*",
+            "path": "/mcp"
+          },
+          {
+            "method": "*",
+            "path": "/mcp/**"
+          }
+        ]
+      }
+    },
+    "credentials": [
+      "anthropic",
+      "outline"
+    ]
+  }
+}

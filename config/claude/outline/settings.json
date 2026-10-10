@@ -1,0 +1,36 @@
+{
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": [
+    "outline"
+  ],
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(hostname)",
+      "Bash(date:*)",
+      "Bash(uname:*)",
+      "Bash(sha256sum:*)",
+      "Bash(mkdir -p:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(sort:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "WebFetch",
+      "mcp__outline",
+      "Edit(//work/reports/**)",
+      "Edit(//work/cache/**)"
+    ],
+    "deny": [
+      "Edit(//work/CLAUDE.md)",
+      "Edit(//work/.claude/**)",
+      "Edit(//work/.mcp.json)",
+      "Edit(//work/inventory/**)",
+      "Bash(cd:*)"
+    ]
+  }
+}

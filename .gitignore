@@ -1,0 +1,15 @@
+# Local, per-server and secret data: never commit
+.env
+secrets/
+data/
+logs/
+reports/
+
+# Local notes (server-specific, never commit)
+*.local.md
+
+# Build fingerprint written by bin/setup.sh and bin/update.sh
+.build-fingerprint
+
+# Tools downloaded by bin/setup.sh --container-tools
+tools/

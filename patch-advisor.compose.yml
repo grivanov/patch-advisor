@@ -1,0 +1,105 @@
+# patch-advisor: nothing runs permanently. bin/run-patch-advisor.sh starts, per run:
+#   1. "inventory": collects the host's package inventory (no network) - the wrapper adds the Docker inventory itself
+#   2. "patch-advisor": the audit agent (Claude Code inside nono), which only reads that inventory
+# Per-server values come from .env next to this file, including PATCH_ADVISOR_DIR: the install location
+# (absolute path, e.g. /opt/patch-advisor), written by bin/setup.sh and set by the wrapper on every run.
+services:
+  patch-advisor:
+    build:
+      context: ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/build
+      args:
+        UBUNTU_VERSION: ${UBUNTU_VERSION:-26.04}   # set in .env to match the host's release (e.g. 24.04)
+    image: patch-advisor:latest
+    hostname: ${PATCH_ADVISOR_HOST:?set in .env}   # `hostname` inside = real server name
+    restart: "no"
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    # Resources: the audit is mostly network/IO-bound. Low CPU weight so it never competes with real workloads.
+    cpus: 1.0
+    cpu_shares: 256
+    mem_limit: 2g
+    memswap_limit: 2g      # no swap on top of the memory limit
+    pids_limit: 256
+    logging:               # full output is also saved by the wrapper into logs/runs/
+      driver: json-file
+      options:
+        max-size: 50m
+        max-file: "2"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # Inventory collected by the wrapper before the run (read-only): OS, packages, containers, images
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/inventory:/work/inventory:ro
+      - /etc/localtime:/etc/localtime:ro           # host timezone, so dates and report names match the server
+      # Writable state
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/home:/home/agent
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/work:/work
+      # nono profiles (read-only)
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/nono/patch-advisor.json:/home/agent/.config/nono/profiles/patch-advisor.json:ro
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/nono/patch-advisor-apikey.json:/home/agent/.config/nono/profiles/patch-advisor-apikey.json:ro
+      # Claude Code instructions and guardrails (read-only: the agent cannot rewrite its own rules)
+      # PATCH_ADVISOR_MODE selects the instruction set: outline (default) or file (test mode)
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/claude/${PATCH_ADVISOR_MODE:-outline}/CLAUDE.md:/work/CLAUDE.md:ro
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/claude/${PATCH_ADVISOR_MODE:-outline}/settings.json:/work/.claude/settings.json:ro
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/claude/mcp.json:/work/.mcp.json:ro
+      # Markdown reports written in file mode
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/reports:/work/reports
+    working_dir: /work
+    environment:
+      NONO_NO_MIGRATE: "1"   # never install nono packs during a run; install them once with `nono pull` (README step 7)
+      CLAUDE_CODE_TMPDIR: /work/.tmp                  # /tmp is outside the sandbox; the wrapper empties this before each run
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"   # no telemetry, error reporting or update checks
+    secrets: [anthropic_credential, outline_token]
+    network_mode: bridge      # Docker's existing default network: the project creates no networks or address ranges
+    command:
+      - nono
+      - run
+      - --profile
+      - ${PATCH_ADVISOR_PROFILE:-patch-advisor}
+      - --allow-cwd              # /work: instructions, settings, cache, reports (instruction files are mounted read-only)
+      - --
+      - claude
+      - --model
+      - ${PATCH_ADVISOR_MODEL:-sonnet}   # alias (sonnet, opus) or full model name; set in .env or per run
+      - --output-format          # JSON event stream: the wrapper turns it into a readable log
+      - stream-json              # and extracts duration, turns, tokens and cost
+      - --verbose
+      - -p
+      - ${AUDIT_PROMPT:-Run the patch audit described in CLAUDE.md and save the report as described there.}
+
+  # Short-lived helper, started by the wrapper before each audit: collects the host's OS and package inventory
+  # with fixed commands (bin/collect-packages.sh). No network, no agent, host package data read-only.
+  inventory:
+    image: patch-advisor:latest
+    profiles: ["inventory"]   # never started by `docker compose up`; only by the wrapper (`docker compose run inventory`)
+    restart: "no"
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /var/cache/apt:size=128m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 64
+    volumes:
+      - /etc/apt:/etc/apt:ro
+      - /var/lib/apt/lists:/var/lib/apt/lists:ro
+      - /var/lib/dpkg:/var/lib/dpkg:ro
+      - /etc/os-release:/host/os-release:ro            # the host's OS (the image's own /etc/os-release differs)
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/config/apt/apt.conf:/etc/patch-advisor/apt.conf:ro
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/bin/collect-packages.sh:/usr/local/bin/collect-packages.sh:ro
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/inventory:/out
+    command: ["bash", "/usr/local/bin/collect-packages.sh"]
+
+secrets:
+  anthropic_credential:   # `claude setup-token` OAuth token (default) or Console API key (patch-advisor-apikey profile)
+    file: ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/secrets/anthropic_credential
+  outline_token:
+    file: ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/secrets/outline_token

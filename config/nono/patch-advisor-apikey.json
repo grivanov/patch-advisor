@@ -1,0 +1,19 @@
+{
+  "extends": "patch-advisor",
+  "meta": {
+    "name": "patch-advisor-apikey",
+    "description": "Same as patch-advisor, but authenticates Claude Code with a Console API key"
+  },
+  "network": {
+    "custom_credentials": {
+      "anthropic": {
+        "upstream": "https://api.anthropic.com",
+        "credential_key": "file:///run/secrets/anthropic_credential",
+        "env_var": "ANTHROPIC_API_KEY",
+        "inject_mode": "header",
+        "inject_header": "x-api-key",
+        "credential_format": "{}"
+      }
+    }
+  }
+}
