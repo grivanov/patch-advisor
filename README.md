@@ -779,8 +779,6 @@ What it does:
 
 For server-specific notes (your real hosts, paths, procedures), use files named `*.local.md` in the project folder: git ignores them, and updates leave them in place.
 
-**Publishing releases:** build release archives from the git repository (e.g. `git archive --prefix=patch-advisor/ -o patch-advisor-<version>.zip v<version>`), never by zipping a server's or workstation's working folder, which may contain `*.local.md` notes, `.env` or secrets. Publish a SHA-256 checksum with each archive and compare it before updating (`sha256sum patch-advisor-<version>.zip`).
-
 The script runs from a temporary copy of itself, because the update replaces it; if the new release contains a changed `update.sh`, it hands over to the new version right after copying, so the update's own fixes apply immediately. Before updating, compare the changelog entries between your version (`cat /opt/patch-advisor/VERSION`) and the new one.
 
 ---
@@ -803,10 +801,7 @@ The setup was verified end to end (inventory, sandbox, research, file reports an
 
 **Not yet verified in production** (implemented and tested with stubs or not at all; reports welcome):
 
-- The xyOps integration itself: JSON output parsing, the "Run summary" table and performance chart, aborting a job from xyOps.
-- ntfy and webhook notifications (tested with a stubbed `curl` only).
 - The `patch-advisor-apikey` profile (Console API key instead of a subscription token).
-- xySat running in Docker: starting the wrapper from the container and collecting the inventory through the host's Docker work; a complete audit started from a containerized xySat is still to be confirmed.
 - Debian hosts, and container images on registries other than Docker Hub (GHCR, Quay).
 
 Newer versions of nono or Claude Code may change permission syntax or sandbox defaults. After upgrading them, run a file-mode test first and check the run summary for refused tool calls and the issues log for sandbox denials.
