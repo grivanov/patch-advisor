@@ -68,9 +68,17 @@ RUN_ID="$(date +%Y-%m-%d_%H%M%S)"
 LOG="$LOG_DIR/runs/$RUN_ID.log"
 ISSUES="$LOG_DIR/issues.log"
 
+# Result output: "xyops" (default) prints xyOps wire-protocol JSON lines (job result, data, table, chart; other tools can
+# parse or ignore them); "plain" prints one readable result line instead, e.g. for cron or systemd.
+PATCH_ADVISOR_OUTPUT="${PATCH_ADVISOR_OUTPUT:-xyops}"
+case "$PATCH_ADVISOR_OUTPUT" in xyops|plain) ;; *) PATCH_ADVISOR_OUTPUT=xyops ;; esac
 xy() { # code, description, extra JSON for "data"
-  printf '{"xy":1,"code":%s,"description":%s,"data":%s}\n' \
-    "$1" "$(printf '%s' "$2" | jq -Rs .)" "${3:-{\}}"
+  if [ "$PATCH_ADVISOR_OUTPUT" = plain ]; then
+    printf 'Result: exit code %s: %s\n' "$1" "$2"
+  else
+    printf '{"xy":1,"code":%s,"description":%s,"data":%s}\n' \
+      "$1" "$(printf '%s' "$2" | jq -Rs .)" "${3:-{\}}"
+  fi
 }
 # One line per problem: timestamp, run id, level, message (rotated by rotate_issues below)
 issue() { printf '%s %s %s %s\n' "$(date -Is)" "$RUN_ID" "$1" "$2" >> "$ISSUES"; }
@@ -272,6 +280,27 @@ if ! collect_docker 2>"$INV/docker/collect.err"; then
 else
   [ -s "$INV/docker/collect.err" ] || rm -f "$INV/docker/collect.err"
 fi
+# Non-secret facts for the run-settings summary that bin/run-summary.sh prints inside the sandbox (things the sandbox
+# cannot see itself). Notification targets are reduced to host names: ntfy topics and webhook paths often act as passwords.
+host_of() { printf '%s' "$1" | sed -E 's#^[A-Za-z]+://([^/@]*@)?([^/:?#]+).*#\2#'; }
+notify_desc() {
+  local d=""
+  [ -n "$NTFY_URL" ] && d="ntfy → $(host_of "$NTFY_URL")"
+  [ -n "$WEBHOOK_URL" ] && d="${d:+$d, }webhook → $(host_of "$WEBHOOK_URL")"
+  if [ "$NTFY_FAILURE_URL$WEBHOOK_FAILURE_URL" != "$NTFY_URL$WEBHOOK_URL" ]; then
+    local f=""
+    [ -n "$NTFY_FAILURE_URL" ] && [ "$NTFY_FAILURE_URL" != none ] && f="ntfy → $(host_of "$NTFY_FAILURE_URL")"
+    [ -n "$WEBHOOK_FAILURE_URL" ] && [ "$WEBHOOK_FAILURE_URL" != none ] && f="${f:+$f, }webhook → $(host_of "$WEBHOOK_FAILURE_URL")"
+    d="${d:-none}; failures: ${f:-none}"
+  fi
+  printf '%s (reports: NOTIFY_ON=%s)' "${d:-none}" "$NOTIFY_ON"
+}
+LAST_RUN="$(tail -n1 "$LOG_DIR/stats.jsonl" 2>/dev/null | jq -r '"\(.run_id) · exit \(.rc) · \(.security // "?") security, \(.breaking // "?") breaking, \(.urgent // "?") urgent, \(.routine // "?") routine · saved: \(.saved)"' 2>/dev/null)"
+{
+  printf 'RUN_ID=%s\nVERSION=%s\nMODE=%s\nMODEL=%s\nPROFILE=%s\nMAX_SECONDS=%s\nREFRESH=%s\nCACHE_DAYS=%s\n' \
+    "$RUN_ID" "$PA_VERSION" "$PATCH_ADVISOR_MODE" "$PATCH_ADVISOR_MODEL" "$PATCH_ADVISOR_PROFILE" "$MAX_SECONDS" "$PATCH_ADVISOR_REFRESH" "$CACHE_DAYS"
+  printf 'OUTPUT=%s\nLOG=%s\nNOTIFY=%s\nLAST_RUN=%s\n' "$PATCH_ADVISOR_OUTPUT" "$LOG" "$(notify_desc)" "${LAST_RUN:-none}"
+} > "$INV/run-info.env"
 chown -R 1000:1000 "$INV"
 echo "Inventory: $(wc -l < "$INV/packages-installed.tsv" 2>/dev/null || echo 0) packages installed, $(wc -l < "$INV/packages-upgradable.txt" 2>/dev/null || echo 0) upgradable, $(wc -l < "$INV/docker/containers.jsonl" 2>/dev/null || echo 0) containers"
 RC_FILE="$(mktemp)"
@@ -313,6 +342,24 @@ for v in DOC_URL SUM_URL; do
     issue WARN "Ignored report URL that is not in the configured Outline instance: ${!v}"; printf -v "$v" '%s' ""
   fi
 done
+# Outline URLs: remember the last valid ones (documents keep their address), and fall back to them when a run
+# saved to Outline without returning a URL (e.g. after only updating existing documents). Stored in root-owned logs/.
+URL_STATE="$LOG_DIR/.outline-urls"
+if [ "$PATCH_ADVISOR_MODE" = outline ] && [ "$OUT" = ok ]; then
+  if [ -n "$DOC_URL" ] || [ -n "$SUM_URL" ]; then
+    LAST_DOC="$(sed -n 's/^url=//p' "$URL_STATE" 2>/dev/null)"; LAST_SUM="$(sed -n 's/^summary_url=//p' "$URL_STATE" 2>/dev/null)"
+    printf 'url=%s\nsummary_url=%s\n' "${DOC_URL:-$LAST_DOC}" "${SUM_URL:-$LAST_SUM}" > "$URL_STATE"
+  fi
+  for v in DOC_URL SUM_URL; do
+    if [ -z "${!v}" ]; then
+      key=url; [ "$v" = SUM_URL ] && key=summary_url
+      last="$(sed -n "s/^$key=//p" "$URL_STATE" 2>/dev/null)"
+      if [ -n "$last" ] && valid_outline_url "$last"; then
+        printf -v "$v" '%s' "$last"; issue WARN "Claude returned no $key; using the last known one: $last"
+      fi
+    fi
+  done
+fi
 # Path of the report file on the host (container /work/reports = $BASE/reports)
 if [ -n "$RFILE" ]; then
   if [[ "$RFILE" =~ ^/work/reports/[A-Za-z0-9._/-]+\.md$ && "$RFILE" != *..* ]]; then
@@ -333,6 +380,10 @@ if [ -n "$RFILE" ] && [ -f "$RFILE" ] && [ "$(wc -l < "$RFILE")" -lt 5 ] && grep
   issue WARN "Report contained literal \\n instead of line breaks; converted: $RFILE"
 fi
 
+# Exact inventory totals, counted here (not by the agent): upgradable OS packages and running containers
+UPG_PKGS="$(grep -c . "$INV/packages-upgradable.txt" 2>/dev/null)"; UPG_PKGS="${UPG_PKGS:-0}"   # grep -c prints 0 itself (and exits 1)
+N_CONT="$(grep -c . "$INV/docker/containers.jsonl" 2>/dev/null)"; N_CONT="${N_CONT:-0}"
+
 # Run statistics from Claude Code's final "result" event (duration, turns, tokens, cost)
 CLAUDE_RESULT="$(jq -R -c 'try fromjson catch empty | select(type == "object" and .type == "result")' "$RAW" 2>/dev/null | tail -n1)"
 [ -n "$CLAUDE_RESULT" ] || CLAUDE_RESULT='{}'
@@ -351,9 +402,9 @@ STATS="$(jq -c --argjson wall "$WALL_S" '{
     claude_status: (.subtype // "none")
   } | .total_tokens = (.input_tokens + .output_tokens + .cache_read_tokens + .cache_write_tokens)' <<<"$CLAUDE_RESULT")"
 DATA="$(jq -c -n --arg h "$HOST" --arg s "${SEC:-}" --arg b "${BRK:-}" --arg u "${URG:-}" --arg r "${ROU:-}" --arg o "${OUT:-}" \
-  --arg l "$LOG" --arg raw "$RAW" --arg m "$PATCH_ADVISOR_MODE" --arg md "$PATCH_ADVISOR_MODEL" --arg f "${RFILE:-}" --arg du "${DOC_URL:-}" --arg su "${SUM_URL:-}" --arg c "${COMPLETE:-}" --arg ver "$PA_VERSION" --argjson st "$STATS" --argjson rc "$RC" \
+  --arg l "$LOG" --arg raw "$RAW" --arg m "$PATCH_ADVISOR_MODE" --arg md "$PATCH_ADVISOR_MODEL" --arg f "${RFILE:-}" --arg du "${DOC_URL:-}" --arg su "${SUM_URL:-}" --arg c "${COMPLETE:-}" --arg ver "$PA_VERSION" --argjson upg "${UPG_PKGS:-0}" --argjson nc "${N_CONT:-0}" --argjson st "$STATS" --argjson rc "$RC" \
   '{host:$h, security:($s|tonumber? // null), breaking:($b|tonumber? // null), urgent:($u|tonumber? // null), routine:($r|tonumber? // null),
-    version:$ver, mode:$m, model:$md, saved:$o, complete:$c, report_file:$f, outline_url:$du, outline_summary_url:$su, log:$l, event_log:$raw, rc:$rc} + $st')"
+    version:$ver, upgradable_packages:$upg, containers:$nc, mode:$m, model:$md, saved:$o, complete:$c, report_file:$f, outline_url:$du, outline_summary_url:$su, log:$l, event_log:$raw, rc:$rc} + $st')"
 
 DENIED_CALLS="$(jq -r '.denied_tool_calls' <<<"$STATS")"
 [ "$DENIED_CALLS" -gt 0 ] && issue WARN "Claude Code refused $DENIED_CALLS tool call(s) by its permission settings; see $RAW."
@@ -370,6 +421,7 @@ SUMMARY_TXT="$(jq -r '
   "Turns:                \(.turns)",
   "Tokens:               \(.total_tokens | k) total: input \(.input_tokens | k), output \(.output_tokens | k), cache read \(.cache_read_tokens | k), cache write \(.cache_write_tokens | k)",
   "Cost:                 $\(.cost_usd) (estimated by Claude Code; with a subscription token usage counts against plan limits, not billed per token)",
+  "Inventory:            \(.upgradable_packages) upgradable OS packages, \(.containers) running containers (the findings below count items, which group related packages)",
   "Findings:             \(.security // "?") security, \(.breaking // "?") breaking, \(.urgent // "?") urgent, \(.routine // "?") routine; complete: \(if .complete == "" then "?" else .complete end); saved: \(.saved)",
   "Denied tool calls:    \(.denied_tool_calls)",
   (if .outline_url != "" then "Outline:              \(.outline_url)\(if .outline_summary_url != "" then "  (summary: " + .outline_summary_url + ")" else "" end)" elif .report_file != "" then "Report file:          \(.report_file)" else empty end),
@@ -377,15 +429,16 @@ SUMMARY_TXT="$(jq -r '
 printf '\n%s\n' "$SUMMARY_TXT" | tee -a "$LOG"
 jq -c --arg run "$RUN_ID" '{run_id:$run} + .' <<<"$DATA" >> "$STATS_FILE"
 
-jq -c '{xy:1, table:{title:"Run summary", header:["Metric","Value"], rows:[
+[ "$PATCH_ADVISOR_OUTPUT" = xyops ] && jq -c '{xy:1, table:{title:"Run summary", header:["Metric","Value"], rows:[
     ["Server", .host], ["Mode", .mode], ["Model", (if (.models | length) > 0 then (.models | join(", ")) else .model end)],
     ["Duration (total)", "\(.wall_s) s"], ["Claude", "\(.claude_s) s"], ["Model API", "\(.api_s) s"], ["Turns", .turns],
     ["Input tokens", .input_tokens], ["Output tokens", .output_tokens], ["Cache read tokens", .cache_read_tokens], ["Cache write tokens", .cache_write_tokens],
     ["Total tokens", .total_tokens], ["Estimated cost (USD)", .cost_usd],
     ["Security / Breaking / Urgent / Routine", "\(.security // "?") / \(.breaking // "?") / \(.urgent // "?") / \(.routine // "?")"],
+    ["Upgradable OS packages / containers", "\(.upgradable_packages) / \(.containers)"],
     ["Denied tool calls", .denied_tool_calls],
     ["Report", (if .outline_url != "" then .outline_url elif .report_file != "" then .report_file else "-" end)]]}}' <<<"$DATA"
-jq -c '{xy:1, perf:{"Model API": .api_s, "Tools and processing": ([.claude_s - .api_s, 0] | max), "Container start/stop": ([.wall_s - .claude_s, 0] | max)}}' <<<"$DATA"
+[ "$PATCH_ADVISOR_OUTPUT" = xyops ] && jq -c '{xy:1, perf:{"Model API": .api_s, "Tools and processing": ([.claude_s - .api_s, 0] | max), "Container start/stop": ([.wall_s - .claude_s, 0] | max)}}' <<<"$DATA"
 
 DUR_TOK="$(jq -r 'def k: if . >= 1000000 then "\(. / 100000 | floor / 10)M" elif . >= 1000 then "\(. / 100 | floor / 10)k" else "\(.)" end;
   "\(.wall_s / 60 | floor)m \(.wall_s % 60)s, \(.total_tokens | k) tokens"' <<<"$DATA")"
@@ -446,6 +499,7 @@ notify() {
       def k: if . >= 1000000 then "\(. / 100000 | floor / 10)M" elif . >= 1000 then "\(. / 100 | floor / 10)k" else "\(.)" end;
       $d,
       "",
+      "Upgradable OS packages: \(.upgradable_packages) · Containers: \(.containers) (findings count items, which group related packages)",
       "Mode: \(.mode) · Model: \(if (.models | length) > 0 then (.models | join(", ")) else .model end)",
       "Duration: \(.wall_s / 60 | floor)m \(.wall_s % 60)s · Tokens: \(.total_tokens | k) · Est. cost: $\(.cost_usd)",
       (if .outline_url != "" then "Report: \(.outline_url)" elif .report_file != "" then "Report file: \(.report_file)" else empty end),

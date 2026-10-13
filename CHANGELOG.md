@@ -3,6 +3,46 @@
 All notable changes to patch-advisor. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/): before 1.0.0, minor versions may contain breaking changes.
 The installed version is in the `VERSION` file and is shown in every run log, run summary and the xyOps job data.
+Dates are in UTC. Versions 0.1.0 to 0.10.0 were assigned afterwards, when versioning was introduced in 0.11.0; they group the earlier development steps.
+
+## [0.25.0] - 2026-10-13
+
+### Added
+- **Run settings summary** before every audit, in the terminal and the run log: run ID and version, mode and destination (Outline MCP server URL or report folder), model and authentication type, time limit, age of the host's package lists (with a warning above 2 days), inventory counts and host OS, cache state and age (EUVD list age, number of release-note summaries, or "cleared for this run"), the network allowlist, Claude Code and nono versions, notification targets (host names only), output format, and the last run's result. Printed by the new `bin/run-summary.sh` **inside the nono sandbox**, right before Claude Code starts, so it shows what the run really uses and cannot expose secrets. Facts the sandbox cannot see are prepared by the wrapper in `data/inventory/run-info.env`, without secrets.
+
+### Fixed
+- `bin/update.sh` and `bin/setup.sh` ended **silently** (no output, exit code 0) when an optional setting such as `UBUNTU_VERSION` was missing from `.env` (since 0.15.0): `grep` finding nothing ended the script under `set -euo pipefail`. Found by a regression run of all earlier test scenarios (35 checks, all passing).
+
+## [0.24.0] - 2026-10-13
+
+### Added
+- `PATCH_ADVISOR_OUTPUT=plain`: ends a run with one readable `Result: exit code N: …` line instead of the xyOps JSON lines, e.g. for cron or systemd. The default (`xyops`) is unchanged.
+- README: new section "Running and scheduling" with examples for running by hand, cron and a systemd timer, and notes for any other scheduler (exit codes, per-run settings, lock, time limit, running from a container).
+
+### Changed
+- README: patch-advisor is presented as what it is, a script that runs one audit; xyOps is documented as the author's setup in its own section ("xyOps (the author's setup)", with "xyOps event" and "xySat in Docker"). Generic topics that used to sit inside the xyOps section are now top-level or under "Running and scheduling": job types, notifications, several servers, exit codes and output, and settings for one run (now listed by environment variable, with the xyOps parameter name alongside).
+
+## [0.23.1] - 2026-10-13
+
+### Fixed
+- Changelog dates: all entries had the same date. They now show the actual release dates (UTC), reconstructed from file timestamps and run logs: 0.1.0–0.5.0 on 2026-10-09, 0.6.0–0.21.2 on 2026-10-10, 0.22.0 and later on 2026-10-13.
+
+## [0.23.0] - 2026-10-13
+
+### Added
+- **Items and packages:** every category now shows the number of items and of packages in them (e.g. `🔴 2 items (5 packages)`), plus the total of upgradable OS packages, in file reports, the host document's `Current status` and the summary (new column "Upgradable packages"). A note under the tables explains the grouping and that Ubuntu's login message ("N updates can be applied") is computed and cached separately. Required in `CLAUDE.md`, independent of the structure document.
+- The wrapper counts the exact totals itself from the inventory (`upgradable_packages`, `containers`): in the run summary, the job data, the xyOps table and notifications.
+- README: "Items and packages" explanation and a troubleshooting entry for counts that differ from the login message.
+
+## [0.22.0] - 2026-10-13
+
+### Added
+- `AGENTS.md`: context for AI agents and contributors (architecture, security invariants, design decisions and abandoned alternatives, conventions, testing, lessons learned, open items). A short root `CLAUDE.md` points coding agents to it. Private context belongs in `AGENTS.local.md` (git-ignored by the `*.local.md` rule).
+- README "Contributing" section.
+- Outline mode: Claude sets the server document and the summary to **full width** (Outline's `fullWidth` option) when its Outline tools allow it, so the tables use the whole page.
+
+### Fixed
+- Notifications sometimes had no Outline link: on runs that only updated existing documents, Claude did not return the URLs. `CLAUDE.md` now requires them on every run, and the wrapper remembers the last valid URLs (in `logs/.outline-urls`) and uses them when a run omits them (logged as a warning).
 
 ## [0.21.2] - 2026-10-10
 
@@ -277,14 +317,14 @@ Review fixes.
 - Containers on moving tags (`latest`): version from labels, version variables, build history or registry digest; update detection by digest.
 - Only stable releases count as "newest" (pre-releases are skipped).
 
-## [0.5.0] - 2026-10-10
+## [0.5.0] - 2026-10-09
 
 ### Added
 - Vulnerability and lifecycle sources: OSV.dev, GitHub Advisory Database, Ubuntu/Debian security data, ENISA EUVD (exploited vulnerabilities), endoflife.date.
 - Cache in `data/work/cache/` so unchanged data is not fetched again; release notes re-read when they change upstream; `PATCH_ADVISOR_REFRESH`.
 - `PATCH_ADVISOR_MODEL` to choose the Claude model.
 
-## [0.4.0] - 2026-10-10
+## [0.4.0] - 2026-10-09
 
 ### Added
 - Job types: `outline` (default) and `file` (Markdown report, no Outline) via `PATCH_ADVISOR_MODE`.
@@ -293,7 +333,7 @@ Review fixes.
 ### Changed
 - Installation path `/opt/patch-advisor`; company-specific values replaced with placeholders for a public repository.
 
-## [0.3.0] - 2026-10-10
+## [0.3.0] - 2026-10-09
 
 ### Added
 - Ubuntu 26.04 LTS base image, Docker CLI 29.x, hardened socket proxy, per-server `.env`.
@@ -301,14 +341,14 @@ Review fixes.
 - Token documentation (Claude `setup-token`, Outline API key) and rotation.
 - Support for xySat running in Docker.
 
-## [0.2.0] - 2026-10-10
+## [0.2.0] - 2026-10-09
 
 ### Added
 - xyOps integration: `bin/run-patch-advisor.sh` with lock, timeout, cleanup and xyOps wire-protocol result.
 - Outline structure discovery: per-server document with dated sections, summary table, structure document.
 - One fresh container per run (`docker compose run`).
 
-## [0.1.0] - 2026-10-10
+## [0.1.0] - 2026-10-09
 
 ### Added
 - First version: read-only audit of OS packages and Docker containers with Claude Code in a nono sandbox, Docker socket proxy, Outline MCP through nono's credential proxy, subscription or API-key authentication.

@@ -29,7 +29,7 @@ done
 for t in unzip rsync sha256sum docker; do command -v "$t" >/dev/null || { echo "Needs $t."; exit 1; }; done
 
 # Local settings come from .env (never from the archive)
-env_get() { grep -E "^$1=" "$INSTALL/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//; s/^"(.*)"$/\1/'; }
+env_get() { grep -E "^$1=" "$INSTALL/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//; s/^"(.*)"$/\1/' || true; }   # a missing setting is not an error (set -e/pipefail would end the script silently)
 OUTLINE_HOST="$(env_get OUTLINE_HOST)"
 valid_host() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?$ ]]; }
 if [ -n "$OUTLINE_HOST" ] && ! valid_host "$OUTLINE_HOST"; then echo "Invalid OUTLINE_HOST in $INSTALL/.env: $OUTLINE_HOST (host name only)"; exit 1; fi

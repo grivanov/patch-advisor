@@ -177,7 +177,8 @@ Short description of the server (OS, version, kernel, role).
 
 ## Summary
 
-- 🔴 Security: N · 🟠 Breaking: N · 🟡 Urgent: N · 🟢 Routine: N
+- 🔴 Security: N items (P packages) · 🟠 Breaking: N (P) · 🟡 Urgent: N (P) · 🟢 Routine: N (P)
+- Upgradable OS packages: T (package lists refreshed YYYY-MM-DD HH:MM) · running containers: C
 - Most important action: ...
 - Completeness: complete audit / incomplete (what is missing)
 
@@ -189,6 +190,8 @@ Short description of the server (OS, version, kernel, role).
 
 Sorted by priority; routine OS packages are one row.
 
+Items group related packages: packages built from the same source count as one item, and routine OS packages are summarized in one row. Package counts are comparable with `apt list --upgradable`. The login message ("N updates can be applied") is computed and cached separately by Ubuntu and can differ.
+
 ## 🔴 Security
 
 ### <component>
@@ -198,6 +201,9 @@ Sorted by priority; routine OS packages are one row.
 - CVE/GHSA/USN: ... (severity); ⚠ actively exploited (EUVD-...) if so
 - Source: <link>
 ```
+- **Counts:** for every category give the number of **items and packages**, e.g. `🔴 2 items (5 packages)`, and the total number of
+  upgradable OS packages (the lines in `packages-upgradable.txt`). Count packages per item: every upgradable binary package that belongs
+  to it, also those summarized in a routine row. Container images count as 1 package each.
 - Include a category heading only if it has items. If there are no updates at all, write `No updates available.` under "Summary".
 - Each item: a `###` heading with the component, then a bullet list: installed → latest version, 1–3 sentence summary, CVE/GHSA/USN numbers with severity, "actively exploited" if EUVD marks it so, EUVD id, link to the source. The other category sections (🟠, 🟡, 🟢) follow the same pattern.
 

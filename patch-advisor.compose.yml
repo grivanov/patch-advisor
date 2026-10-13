@@ -33,6 +33,8 @@ services:
     volumes:
       # Inventory collected by the wrapper before the run (read-only): OS, packages, containers, images
       - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/inventory:/work/inventory:ro
+      # Prints the run settings inside the sandbox, then starts Claude Code
+      - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/bin/run-summary.sh:/usr/local/bin/pa-run-summary:ro
       - /etc/localtime:/etc/localtime:ro           # host timezone, so dates and report names match the server
       # Writable state
       - ${PATCH_ADVISOR_DIR:?run bin/setup.sh (sets PATCH_ADVISOR_DIR in .env)}/data/home:/home/agent
@@ -61,6 +63,7 @@ services:
       - ${PATCH_ADVISOR_PROFILE:-patch-advisor}
       - --allow-cwd              # /work: instructions, settings, cache, reports (instruction files are mounted read-only)
       - --
+      - /usr/local/bin/pa-run-summary   # prints the run settings (inside the sandbox), then runs the command below
       - claude
       - --model
       - ${PATCH_ADVISOR_MODEL:-sonnet}   # alias (sonnet, opus) or full model name; set in .env or per run
