@@ -41,8 +41,16 @@ if [ "$STAGE" = 1 ]; then
 # 1. Unpack
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"; rm -f "$0"' EXIT
 unzip -q "$ZIP" -d "$TMP"
-SRC="$TMP/patch-advisor"
-[ -f "$SRC/bin/run-patch-advisor.sh" ] || { echo "Unexpected archive layout (no patch-advisor/bin/run-patch-advisor.sh)."; exit 1; }
+# Find the project inside the archive: top folder "patch-advisor/" (our release archives), "<repo>-<tag>/" (GitHub source
+# archives), or no top folder at all (git archive without --prefix). Exactly one project must be found.
+mapfile -t FOUND < <(find "$TMP" -maxdepth 3 -type f -path '*/bin/run-patch-advisor.sh' -printf '%h\n' | sed 's#/bin$##' | sort -u)
+if [ "${#FOUND[@]}" -ne 1 ]; then
+  echo "Unexpected archive layout: expected exactly one patch-advisor project (bin/run-patch-advisor.sh), found ${#FOUND[@]}."
+  unzip -l "$ZIP" | head -n 8
+  exit 1
+fi
+SRC="${FOUND[0]}"
+[ -f "$SRC/patch-advisor.compose.yml" ] || { echo "Unexpected archive layout: $SRC has no patch-advisor.compose.yml."; exit 1; }
 OLD_VERSION="$(cat "$INSTALL/VERSION" 2>/dev/null || echo unknown)"
 NEW_VERSION="$(cat "$SRC/VERSION" 2>/dev/null || echo unknown)"
 echo "== Updating $INSTALL: $OLD_VERSION -> $NEW_VERSION (see CHANGELOG.md)"

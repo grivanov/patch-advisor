@@ -890,7 +890,7 @@ sudo /opt/patch-advisor/bin/update.sh /path/to/patch-advisor-<version>.zip
 
 What it does:
 
-1. Unpacks the archive and copies it over the install, keeping everything that belongs to this server: `.env`, `secrets/`, `data/` (agent home, nono pack, cache, inventory), `logs/` and `reports/`. Code and config end up owned by root.
+1. Unpacks the archive (our release archives with a `patch-advisor/` top folder, GitHub source archives with a `<repo>-<tag>/` top folder, or archives without a top folder) and copies it over the install, keeping everything that belongs to this server: `.env`, `secrets/`, `data/` (agent home, nono pack, cache, inventory), `logs/` and `reports/`. Code and config end up owned by root.
 2. Re-applies the Outline host from `OUTLINE_HOST` in `.env`.
 3. Rebuilds the image only if the Dockerfile or `UBUNTU_VERSION` changed since the last build (or there is no image yet).
 4. Runs a file-mode test and shows the exit code, the newest report and the issues of the run. Add `--no-test` to skip it.

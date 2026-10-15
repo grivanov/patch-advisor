@@ -5,6 +5,11 @@ and the project uses [Semantic Versioning](https://semver.org/): before 1.0.0, m
 The installed version is in the `VERSION` file and is shown in every run log, run summary and the xyOps job data.
 Dates are in UTC. Versions 0.1.0 to 0.10.0 were assigned afterwards, when versioning was introduced in 0.11.0; they group the earlier development steps.
 
+## [0.25.1] - 2026-10-13
+
+### Fixed
+- `bin/update.sh` rejected GitHub source archives ("Unexpected archive layout"), because it required the top folder to be named exactly `patch-advisor/`. It now finds the project inside the archive: top folder `patch-advisor/`, `<repo>-<tag>/` (GitHub releases and tags), or no top folder (`git archive` without `--prefix`). An archive with more than one project is refused, with the archive's top entries shown.
+
 ## [0.25.0] - 2026-10-13
 
 ### Added

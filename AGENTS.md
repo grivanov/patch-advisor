@@ -118,6 +118,7 @@ Do not confuse the root `CLAUDE.md` (pointer for coding agents working on this r
 - **SemVer** (pre-1.0: minor = features/behavior changes, patch = fixes). Every change: bump `VERSION`, add a `CHANGELOG.md` entry
   (Keep a Changelog sections: Added / Changed / Fixed / Security / Removed), newest first.
 - **Release archive:** `patch-advisor-<version>.zip` with top folder `patch-advisor/`; exclude `tools/` and anything git-ignored.
+  `bin/update.sh` also accepts GitHub source archives (`<repo>-<tag>/`) and archives without a top folder; exactly one project must be inside.
 - **README:** keep it in sync with every behavior change; regenerate the table of contents (GitHub anchor rules) and check that all
   internal links resolve.
 - **Both CLAUDE.md files:** sections shared by both modes (rules, inventory, steps, classification, cache, commands) must stay identical;
