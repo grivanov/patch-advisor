@@ -78,7 +78,7 @@ fi
 set_env PATCH_ADVISOR_DIR "$INSTALL"   # always the real location (also after moving the folder)
 ok "PATCH_ADVISOR_DIR=$INSTALL"
 chown root:root "$ENV" && chmod 600 "$ENV"
-env_get() { grep -E "^$1=" "$ENV" | tail -n1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//; s/^"(.*)"$/\1/'; }
+env_get() { grep -E "^$1=" "$ENV" | tail -n1 | cut -d= -f2- | sed -E 's/[[:space:]]+#.*$//; s/^"(.*)"$/\1/' || true; }   # a missing setting is not an error (set -e/pipefail would end the script silently)
 OUTLINE_HOST="$(env_get OUTLINE_HOST)"; UBUNTU_VERSION="$(env_get UBUNTU_VERSION)"
 if [ -n "$OUTLINE_HOST" ] && ! valid_host "$OUTLINE_HOST"; then echo "   Invalid OUTLINE_HOST in $ENV: $OUTLINE_HOST"; exit 1; fi
 [ -n "$OUTLINE_HOST" ] || warn "OUTLINE_HOST is empty: set it in $ENV (or re-run with --outline-host HOST) before using outline mode"

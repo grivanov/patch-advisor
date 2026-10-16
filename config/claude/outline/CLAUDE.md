@@ -189,9 +189,14 @@ This server's name is the output of `hostname`.
 2. Look **under the home** for a document that describes the structure/conventions of these reports. If found, read it and follow it.
 3. Find this server's existing patch notes document **under the home** (match by the server name), and the summary document with a table across servers.
 4. Update this server's document and the summary document following the structure document, or, where it says nothing, the "Default structure" below.
-   **Required on every run, whatever the structure document says** (these two rules override it):
+   **Required on every run, whatever the structure document says** (these rules override it):
+   - **Full width:** if the Outline tools let you set a document's width (Outline's `fullWidth` option), set this server's document and the
+     summary document to full width, so their tables use the whole page. If the tools have no such option, skip this silently.
    - **Server document:** keep a `## Current status` section directly below the short server description, with a table of this host's open
      items from **this run's** audit (see "Default structure"). Replace that section completely on every run; create it if it is missing.
+   - **Counts** (server document and summary): for every category give the number of **items and packages**, e.g. `🔴 2 items (5 packages)`, and the total number of
+     upgradable OS packages (the lines in `packages-upgradable.txt`). Count packages per item: every upgradable binary package that belongs
+     to it, also those summarized in a routine row. Container images count as 1 package each.
    - **Summary document:** update it on every run, also when nothing changed: the "last updated" date and time, this server's "last check" date and time,
      and **all of this server's rows, rewritten from this run's audit**. Rows of this server that people deleted come back if the item still applies;
      rows for items that no longer apply are removed.
@@ -223,13 +228,15 @@ This server's name is the output of `hostname`.
 - At the top: a short description of the server (OS, version, kernel, role), refreshed on every check.
 - Directly below: `## Current status`, replaced on every check, with the date of the check and a table of this host's open items:
 
-  `Last check: YYYY-MM-DD HH:MM TZ · 🔴 N · 🟠 N · 🟡 N · 🟢 N`
+  `Last check: YYYY-MM-DD HH:MM TZ · 🔴 N (P) · 🟠 N (P) · 🟡 N (P) · 🟢 N (P) · upgradable packages: T`
+  (N = items, P = packages in them, T = all upgradable OS packages)
 
   | Priority | Component | Installed version | Latest version | Recommended action and notes |
   |---|---|---|---|---|
 
   Sorted by priority (🔴, 🟠, 🟡, 🟢); routine OS packages are one row; a component with several aspects shows them in the notes
   (e.g. `⚠ breaking: ...`). If there are no updates: `No updates available.` instead of the table.
+  Below the table, one line in italics: _Items group related packages: packages built from the same source count as one item, and routine OS packages are summarized in one row. Package counts are comparable with `apt list --upgradable`. The login message ("N updates can be applied") is computed and cached separately by Ubuntu and can differ._
 - Below that, the history: every check adds a new section **above the previous dated sections**, with a level-2 heading `## YYYY-MM-DD`,
   for navigation through the table of contents (TOC) in the sidebar.
 - Under each date, level-3 headings, only if they have content:
@@ -245,7 +252,7 @@ This server's name is the output of `hostname`.
 - At the top: `Last updated: YYYY-MM-DD HH:MM TZ` (date, time and time zone of this run).
 - Table 1 – per server:
 
-| Server | Last check (date and time) | 🔴 Security | 🟠 Breaking | 🟡 Urgent | 🟢 Routine |
+| Server | Last check (date and time) | 🔴 Security | 🟠 Breaking | 🟡 Urgent | 🟢 Routine | Upgradable packages |
 |---|---|---|---|---|---|
 
 - Table 2 – details, sorted by priority (🔴, 🟠, 🟡, 🟢), then by server:
@@ -255,6 +262,7 @@ This server's name is the output of `hostname`.
 
   - "Details" is a link to the dated section in the server's document.
   - Routine OS packages of one server are one row.
+  - Category cells in Table 1 show `items (packages)`, e.g. `2 (5)`; below Table 1, the same italic note as in `Current status`.
   - On update, **only this server's rows** are replaced. Rows of other servers and manually added rows stay unchanged.
 
 ## Issues
@@ -275,4 +283,5 @@ Your very last line of output must be exactly one line in this format (it is par
 Limits of depth (e.g. a version that could not be determined for one image) are not a gap: report them as `ISSUE` lines and in the report, and still use `complete=yes`.
 Packages without an available update are out of scope and never make the audit incomplete.
 Use counts of items in each category for this server, and `saved=ok` only if both the server document and the summary document were saved in Outline; otherwise `saved=failed`.
-`url` and `summary_url` are the full absolute URLs (`https://...`) of this server's document and of the summary document in Outline, as returned by the Outline tools (prefix a relative path with the Outline base URL). Leave out a URL you do not have. After a fallback, add `file=<path of the fallback file>`.
+`url` and `summary_url` are required on **every** run, also when you only updated existing documents (if the update response does not
+contain the URL, read the document with the Outline tools to get it). They are the full absolute URLs (`https://...`) of this server's document and of the summary document in Outline, as returned by the Outline tools (prefix a relative path with the Outline base URL). Leave out a URL you do not have. After a fallback, add `file=<path of the fallback file>`.
